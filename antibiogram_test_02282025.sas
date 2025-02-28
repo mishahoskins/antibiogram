@@ -134,7 +134,7 @@ quit;
 
 
 
-/*This piece transposes from columns for each treatment to columns for each pathogen*/
+/*This piece transposes from columns for each treatment to columns for each pathogen: no longer used but keeping in code*/
 proc transpose data=antibio_calc_1a_&abx out=antibio_calc_2_&abx;
 *by pct_susc_&abx;
 id pathogen_2;
@@ -351,7 +351,7 @@ label CLIND_combine = "Clindamycin";
 label ERYTH_combine = "Erythromycin";
 label GENT_combine = "Gentamicin";
 label IMI_combine = "Imipenem/ Cilastatin/ Relebacam";
-label LEVO_combine = "Levofloxacin";bn ft  f
+label LEVO_combine = "Levofloxacin";
 label MERO_combine = "Meropenem/ Vaborbactam";
 label PIPTAZ_combine = "Piperacillin/ Tazobactam";
 label TOBRA_combine = "Tobramycin";

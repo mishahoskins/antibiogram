@@ -1,5 +1,20 @@
 /*Antibiogram SAS Code: Jan/Feb 2025, M. Hoskins
 This code makes an antibiogram on event data from NHSN and produces a sendable Excel file.
+NHSN uses the format:
+pathogen | treatment_1 | treatment_n
+_____________________________________
+staph_a		S		R
+ecoli		R		R
+kleb		N		S-DD
+pseud		S		S
+ent_fae		S-DD		S
+staph_a		R		.
+...
+
+So we want to group all S+S-DD and divide by total isolated for each disease and group by treatment option. ie. what % of E coli. were susceptible to Ciprofloxacin. 
+I think it's also important to define the spectrum of the antibiotics in a general sense so that is built into the final order. 
+
+As always, most of the challenges lie in generating the table(s) we want. There are probably better ways to do that but there are a few macros/do loops that help in certain places. 
 
 Infectious agents to consider:
 _____________________________
@@ -10,7 +25,7 @@ Klebsiella pneumoniae
 Pseudomonas aeruginosa
 Staphylococcus aureus 
 */
-libname archive "C:\Users\mhoskins1\Desktop\Work Files\NHSN\2019-2024 Archive data"; /*2019-2024 data*/
+libname archive "WHEREYOURDATAISSTORED\2019-2024 Archive data"; /*2019-2024 data*/
 
 data antibio_raw;
 set archive.linelisting_antibiogram;
@@ -78,6 +93,8 @@ from pathogen_tot_2
 ;
 quit;
 
+proc print data=pathogen_tot_final noobs label;run;
+
 /*Step 2: This macro takes each treatment variable and creates a table that shows the % susceptible for each of the 10-12 most common Pathogens. Remember 30+ pathogens must be isolated to create an antibiogram*/
 
 %macro antibio_all_2 (abx=);
@@ -119,7 +136,7 @@ data antibio_calc_grp_&abx;
 set antibio_calc_1a_&abx;
 
 label &abx._combine = "% Susceptible &abx (Total Isolated)";
-	&abx._combine = cats(put(pct_susc_&abx, percent10.1), "(", put(path_&abx._iso_, 5.), ")");
+	&abx._combine = cats(put(pct_susc_&abx, percent10.1), "(", put(path_&abx._iso_, comma5.), ")");
 ;
 run;
 /*finalize table*/
@@ -134,7 +151,7 @@ quit;
 
 
 
-/*This piece transposes from columns for each treatment to columns for each pathogen: no longer used but keeping in code*/
+/*This piece transposes from columns for each treatment to columns for each pathogen*/
 proc transpose data=antibio_calc_1a_&abx out=antibio_calc_2_&abx;
 *by pct_susc_&abx;
 id pathogen_2;
@@ -389,7 +406,34 @@ quit;
 
 %condense_table(merge_test);
 /*View table*/
-proc print data=condensed_table_final noobs label;run;
+proc print data=condensed_table_final noobs ;run;
+
+/*Transpose to look nicer*/
+proc transpose data=condensed_table_final out=condensed_2(drop=_NAME_);
+    var CLIND_combine CEFAZ_combine GENT_combine TOBRA_combine AMK_combine CIPRO_combine LEVO_combine AMP_combine AMPSUL_combine CEFTRX_combine CEFEP_combine MERO_combine IMI_combine PIPTAZ_combine ERYTH_combine; /*group to one column*/
+    id pathogen_2; /*name other columns*/
+run;
+
+/*Clean and finalize labels*/
+proc sql;
+create table condensed_table_final_2 as
+select
+
+	_LABEL_ as Treatment 'Treatment',
+	Enterococcus_faecalis____Suscept as entero_fac 'Enterococcus faecalis: % Susceptible (# Isolates)',
+	Escherichia_coli____Susceptible as ecoli 'Escherichia coli: % Susceptible (# Isolates)',
+	Klebsiella_pneumoniae____Suscept as kelb_pneu 'Klebsiella pneumoniae: % Susceptible (# Isolates)',
+	Pseudomonas_aeruginosa____Suscep as pseud_aerg 'Pseudomonas aeruginosa: % Susceptible (# Isolates)',
+	Staphylococcus_aureus____Suscept as stap_a 'Staphylococcus aureus: % Susceptible (# Isolates)'
+
+from condensed_2
+;
+quit;
+
+
+proc print data=condensed_table_final_2 noobs label;run;
+
+
 
 
 
@@ -397,7 +441,7 @@ proc print data=condensed_table_final noobs label;run;
 /*ODS export*/
 title; footnote;
 /*Set your output pathway here*/
-ods excel file="C:\Users\mhoskins1\Desktop\Work Files\antibiogram\anitbiogram_2019 2024_test_&sysdate..xlsx" style=meadow;
+ods excel file="FILEPATHGOESHERE\anitbiogram_2019 2024_test_&sysdate..xlsx" style=meadow;
 ods excel options (sheet_interval = "none" sheet_name = "antibiogram_2" embedded_titles='Yes');
 options missing='';
 footnote;
@@ -405,9 +449,10 @@ title height=9pt justify=left "Pathogens isolated, North Carolina 2019-2024";
 title2;
 proc print data=pathogen_tot_final noobs label;run;
 
-title height=8pt justify=left"Pathogen identified and susceptibility by treatment, North Carolina 2019-2024";
-title2 height=8pt justify=left "*among reported events, treatment classification narrow to borad spectrum left to right";
-proc print data=condensed_table_final noobs label;run;
+title height=8pt justify=left"Pathogen identified and susceptibility by treatment, YOURSTATE/JURISDICTION 2019-2024";
+title2 height=8pt justify=left "*among reported events, treatment classification narrow to broad spectrum top to bottom";
+proc print data=condensed_table_final_2 noobs label;run;
 
 ods excel close;
+
 
